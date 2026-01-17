@@ -8,20 +8,16 @@ printf "Usage of this tool is at your own risk.\n"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "\033[0m\n"
 
-# 1. Path Setup
 TARGET_DIR="/opt/Pathways"
 
-# 2. Preparation
 printf "\n\033[0;32m[*] Target Directory: %s\033[0m\n" "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
-# 3. Bootstrapping
 printf "\033[0;32m[*] Bootstrapping main files...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 
-# 4. Recursive Docker Crawler
 printf "\033[0;32m[*] Launching Asset Crawler (Docker)...\033[0m\n"
 docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
@@ -33,8 +29,7 @@ regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff
 
 def crawl(initial_files=None):
     found_links = set()
-    if initial_files:
-        found_links.update(initial_files)
+    if initial_files: found_links.update(initial_files)
     for root, _, files in os.walk(target_root):
         for file in files:
             if file.endswith(('.js', '.html', '.css', '.xml', '.json')):
@@ -63,7 +58,7 @@ def crawl(initial_files=None):
             except: continue
     return new_assets
 
-seeds = ['html5/lib/scripts/bootstrapper.min.js', 'html5/data/css/output.min.css', 'story_content/user.js']
+seeds = ['html5/lib/scripts/bootstrapper.min.js', 'html5/data/css/output.min.css', 'story_content/user.js', 'html5/data/js/data.js', 'html5/data/js/frame.js', 'html5/data/js/paths.js']
 total = 0
 while True:
     added = crawl(seeds if total == 0 else None)
@@ -73,10 +68,9 @@ while True:
 print(f'Sync Complete. Total assets: {total}')
 \" "
 
-# 5. Final message
-if [ -f "$TARGET_DIR/story.html" ]; then
-    printf "\n\033[0;32m[*] Process Finished. Files saved in: %s\033[0m\n" "$TARGET_DIR"
-    IP_ADDR=$(hostname -I | awk '{print $1}')
-    printf "\033[1;32mURL: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
-    printf "\033[1;33mTo host, run: cd %s && python3 -m http.server 8080\033[0m\n" "$TARGET_DIR"
-fi
+IP_ADDR=$(hostname -I | awk '{print $1}')
+printf "\n\033[1;34m------------------------------------------------------\033[0m\n"
+printf "To start hosting, run:\033[1;32m\n"
+printf "cd %s && python3 -m http.server 8080\033[0m\n\n" "$TARGET_DIR"
+printf "URL: \033[1;36mhttp://%s:8080/story.html\033[0m\n" "$IP_ADDR"
+printf "\033[1;34m------------------------------------------------------\033[0m\n"
