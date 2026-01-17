@@ -22,14 +22,11 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-# 3. Dependencies (Fixing the Docker Conflict)
+# 3. Dependencies
 printf "\n\033[0;32m[1/5] Checking system dependencies...\033[0m\n"
-
-# If docker is missing, attempt to repair and install
 if ! command -v docker >/dev/null 2>&1; then
     printf "Repairing and installing docker...\n"
     apt-get update
-    # Force overwrite to resolve potential docker-buildx conflicts
     apt-get install -y -o Dpkg::Options::="--force-overwrite" docker.io curl
 fi
 systemctl start docker >/dev/null 2>&1
@@ -42,8 +39,8 @@ cd "$TARGET_DIR" || exit
 printf "\n\033[0;32m[2/5] Downloading Teaching Guide PDF...\033[0m\n"
 curl -L "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 
-# 6. Run Docker Crawler
-printf "\n\033[0;32m[3/5] Starting Asset Crawler (Docker)...\033[0m\n"
+# 6. Run Recursive Docker Crawler
+printf "\n\033[0;32m[3/5] Starting Recursive Asset Crawler (Docker)...\033[0m\n"
 docker run -i --rm -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
 python3 -c \"
@@ -52,38 +49,47 @@ base_url = 'https://www.shoutoutuk.org/gamepw/'
 target_root = '/app'
 exts = 'png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico'
 regex = r'[a-zA-Z0-9_/.-]+\.(?:' + exts + ')'
-found_files = {'story.html', 'analytics-frame.html'}
 
-print('Scanning for assets...')
-for root, dirs, files in os.walk(target_root):
-    for file in files:
-        if file.endswith(('.js', '.html', '.css')):
-            with open(os.path.join(root, file), 'r', errors='ignore') as f:
-                found_files.update(re.findall(regex, f.read()))
+def crawl():
+    found_files = {'story.html', 'analytics-frame.html'}
+    for root, dirs, files in os.walk(target_root):
+        for file in files:
+            if file.endswith(('.js', '.html', '.css', '.xml')):
+                with open(os.path.join(root, file), 'r', errors='ignore') as f:
+                    found_files.update(re.findall(regex, f.read()))
+    
+    to_download = {f.split('?')[0].lstrip('/') for f in found_files if not f.startswith(('http', 'data:'))}
+    new_count = 0
+    for path in sorted(to_download):
+        for loc in [path, 'mobile/'+os.path.basename(path), 'story_content/'+os.path.basename(path)]:
+            dest = os.path.join(target_root, loc)
+            if os.path.exists(dest): break
+            try:
+                r = requests.get(base_url + loc, headers={'User-Agent': 'Mozilla/5.0'}, timeout=7)
+                if r.status_code == 200:
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    with open(dest, 'wb') as f: f.write(r.content)
+                    print(f'  + {loc}')
+                    new_count += 1
+                    break
+            except: continue
+    return new_count
 
-to_download = {f.split('?')[0].lstrip('/') for f in found_files if not f.startswith(('http', 'data:'))}
-for path in sorted(to_download):
-    for loc in [path, 'mobile/'+os.path.basename(path), 'story_content/'+os.path.basename(path)]:
-        dest = os.path.join(target_root, loc)
-        if os.path.exists(dest): break
-        try:
-            r = requests.get(base_url + loc, headers={'User-Agent': 'Mozilla/5.0'}, timeout=7)
-            if r.status_code == 200:
-                os.makedirs(os.path.dirname(dest), exist_ok=True)
-                with open(dest, 'wb') as f: f.write(r.content)
-                print(f'  + {loc}')
-                break
-        except: continue
+print('Phase 1: Deep Scanning...')
+while True:
+    added = crawl()
+    if added == 0: break
+    print(f'Phase Complete. Added {added} new assets. Re-scanning for more...')
 \" "
 
-# 7. Final Step: Webserver
+# 7. Final Step
 printf "\n\033[0;32m[4/5] Download complete.\033[0m\n"
+printf "Files are located in: %s\n" "$TARGET_DIR"
 printf "Do you want to host the game locally now? (y/n): "
 read START_SRV
 
 if [ "$START_SRV" = "y" ] || [ "$START_SRV" = "Y" ]; then
     IP_ADDR=$(hostname -I | awk '{print $1}')
     printf "\n\033[1;34mGame: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
-    printf "\033[1;34mPDF Guide: http://%s:8080/Teaching_Guide.pdf\033[0m\n" "$IP_ADDR"
     python3 -m http.server 8080
 fi
