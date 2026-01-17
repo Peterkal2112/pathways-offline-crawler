@@ -8,21 +8,21 @@ printf "Usage of this tool is at your own risk.\n"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "\033[0m\n"
 
-# 1. Fixed Path Setup (Avoids reading from stdin during curl pipe)
+# 1. Path Setup
 TARGET_DIR="/opt/Pathways"
 
 # 2. Preparation
-printf "\n\033[0;32m[*] Preparing directory: %s\033[0m\n" "$TARGET_DIR"
+printf "\n\033[0;32m[*] Target Directory: %s\033[0m\n" "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
 # 3. Bootstrapping
-printf "\033[0;32m[*] Bootstrapping core files...\033[0m\n"
+printf "\033[0;32m[*] Bootstrapping main files...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 
 # 4. Recursive Docker Crawler
-printf "\033[0;32m[*] Launching Recursive Crawler (Docker)...\033[0m\n"
+printf "\033[0;32m[*] Launching Asset Crawler (Docker)...\033[0m\n"
 docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
 python3 -c \"
@@ -35,7 +35,6 @@ def crawl(initial_files=None):
     found_links = set()
     if initial_files:
         found_links.update(initial_files)
-    
     for root, _, files in os.walk(target_root):
         for file in files:
             if file.endswith(('.js', '.html', '.css', '.xml', '.json')):
@@ -43,9 +42,7 @@ def crawl(initial_files=None):
                     with open(os.path.join(root, file), 'r', errors='ignore') as f:
                         found_links.update(re.findall(regex, f.read()))
                 except: continue
-    
     to_download = {f.split('?')[0].lstrip('/') for f in found_links if not f.startswith(('http', 'data:', 'https:'))}
-    
     new_assets = 0
     for path in sorted(to_download):
         prefixes = ['', 'html5/lib/scripts/', 'html5/data/css/', 'html5/data/js/', 'mobile/', 'story_content/']
@@ -53,10 +50,8 @@ def crawl(initial_files=None):
             loc = p + os.path.basename(path) if p and '/' in path else path
             if p and not path.startswith(p): loc = p + path
             else: loc = path
-
             dest = os.path.join(target_root, loc)
             if os.path.exists(dest) or len(loc) < 4: continue
-            
             try:
                 r = requests.get(base_url + loc, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
                 if r.status_code == 200:
@@ -74,18 +69,14 @@ while True:
     added = crawl(seeds if total == 0 else None)
     total += added
     if added == 0: break
-    print(f'--- Added {added} files. Next phase... ---')
-
-print(f'Finished. Total: {total}')
+    print(f'--- Added {added} files. Syncing... ---')
+print(f'Sync Complete. Total assets: {total}')
 \" "
 
-# 5. Result
+# 5. Final message
 if [ -f "$TARGET_DIR/story.html" ]; then
-    printf "\n\033[0;32m[*] Success! Files saved in: %s\033[0m\n" "$TARGET_DIR"
+    printf "\n\033[0;32m[*] Process Finished. Files saved in: %s\033[0m\n" "$TARGET_DIR"
     IP_ADDR=$(hostname -I | awk '{print $1}')
     printf "\033[1;32mURL: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
-    # Note: No interactive read here to avoid issues with curl pipe
-    printf "\033[1;33mTo start webserver, run: cd %s && python3 -m http.server 8080\033[0m\n" "$TARGET_DIR"
-else
-    printf "\n\033[1;31m[!] Error: story.html not found in %s\033[0m\n" "$TARGET_DIR"
+    printf "\033[1;33mTo host, run: cd %s && python3 -m http.server 8080\033[0m\n" "$TARGET_DIR"
 fi
