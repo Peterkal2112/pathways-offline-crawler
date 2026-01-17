@@ -13,21 +13,19 @@ DEFAULT_PATH="/root/Pathways"
 printf "Target directory [%s]: " "$DEFAULT_PATH"
 read USER_INPUT
 USER_PATH="${USER_INPUT:-$DEFAULT_PATH}"
-TARGET_DIR="$USER_PATH/gamepw_offline"
+# Stahujeme priamo do zadaneho priecinka, aby sa nam nemiesali cesty
+TARGET_DIR="$USER_PATH"
 
 # 2. Preparation
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
-# 3. Download Teacher's Guide
-printf "\n\033[0;32m[*] Fetching Teacher's Guide PDF...\033[0m\n"
+# 3. Bootstrapping - Tieto subory MUSIA byt v TARGET_DIR pred spustenim Dockeru
+printf "\n\033[0;32m[*] Bootstrapping core files...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
-
-# 4. Bootstrapping (Stiahnutie zakladneho suboru aby mal crawler co skenovat)
-printf "\033[0;32m[*] Bootstrapping main game file...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 
-# 5. Recursive Docker Crawler
+# 4. Recursive Docker Crawler
 printf "\n\033[0;32m[*] Launching Recursive Crawler (Docker)...\033[0m\n"
 docker run -i --rm -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
@@ -35,52 +33,56 @@ python3 -c \"
 import requests, os, re
 base_url = 'https://www.shoutoutuk.org/gamepw/'
 target_root = '/app'
-regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico)'
+# Agresivnejsi regex na vsetky mozne assety
+regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico|cur|svg)'
 
 def crawl():
     found_links = set()
-    # Scan all existing files for new links
     for root, _, files in os.walk(target_root):
         for file in files:
-            if file.endswith(('.js', '.html', '.css', '.xml')):
+            # Skenujeme vsetko, co by mohlo obsahovat linky
+            if file.endswith(('.js', '.html', '.css', '.xml', '.json')):
                 try:
                     with open(os.path.join(root, file), 'r', errors='ignore') as f:
-                        found_links.update(re.findall(regex, f.read()))
+                        content = f.read()
+                        found_links.update(re.findall(regex, content))
                 except: continue
     
-    # Filter only local/relative paths
-    to_download = {f.split('?')[0].lstrip('/') for f in found_links if not f.startswith(('http', 'data:'))}
+    to_download = {f.split('?')[0].lstrip('/') for f in found_links if not f.startswith(('http', 'data:', 'https:'))}
     
     new_assets = 0
     for path in sorted(to_download):
-        # Articulate Storyline often uses these subfolders
-        for loc in [path, 'mobile/'+os.path.basename(path), 'story_content/'+os.path.basename(path), 'html5/data/js/'+os.path.basename(path)]:
+        # Skusame vsetky mozne prefixy, ktore Articulate pouziva
+        possible_locs = [path, 'html5/lib/scripts/'+path, 'html5/data/css/'+path, 'html5/data/js/'+path, 'mobile/'+os.path.basename(path), 'story_content/'+os.path.basename(path)]
+        
+        for loc in possible_locs:
             dest = os.path.join(target_root, loc)
-            if os.path.exists(dest): break # Already have it
+            if os.path.exists(dest) or len(loc) < 4: continue
             
             try:
                 r = requests.get(base_url + loc, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
                 if r.status_code == 200:
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     with open(dest, 'wb') as f: f.write(r.content)
-                    print(f'  [NEW] {loc}')
+                    print(f'  [OK] {loc}')
                     new_assets += 1
                     break
             except: continue
     return new_assets
 
 print('Starting deep synchronization...')
-total_new = 0
+total = 0
+# Prve kolo vynuti stiahnutie bootstrapperov
 while True:
     added = crawl()
-    total_new += added
+    total += added
     if added == 0: break
-    print(f'--- Phase complete. Added {added} files. Re-scanning... ---')
+    print(f'--- Added {added} files. Searching for more dependencies... ---')
 
-print(f'Finished. Total assets synced: {total_new}')
+print(f'Done. Total assets synced: {total}')
 \" "
 
-# 6. Webserver Option
+# 5. Webserver Option
 printf "\n\033[0;32m[*] Process finished. Files saved in: %s\033[0m\n" "$TARGET_DIR"
 printf "Do you want to start the webserver? (y/n): "
 read START_SRV
