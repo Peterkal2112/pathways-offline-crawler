@@ -23,16 +23,15 @@ systemctl start docker >/dev/null 2>&1
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
-# 2. Map Generation (The "Brain" of the crawler)
+# 2. Bootstrap Mapping
 printf "\n\033[0;32m[*] Phase 1: Mapping remote assets...\033[0m\n"
-# We download the files that contain the "blueprint" of the game first
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 curl -sL "https://www.shoutoutuk.org/gamepw/html5/data/js/data.js" -o "data.js_temp"
 curl -sL "https://www.shoutoutuk.org/gamepw/html5/data/js/paths.js" -o "paths.js_temp"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 
-# 3. Proper Crawler Logic
-printf "\033[0;32m[*] Phase 2: Verifying local integrity & Downloading missing files...\033[0m\n"
+# 3. Location-Aware Crawler
+printf "\033[0;32m[*] Phase 2: Verifying integrity & Downloading missing files...\033[0m\n"
 
 docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
@@ -41,13 +40,11 @@ import requests, os, re
 
 base_url = 'https://www.shoutoutuk.org/gamepw/'
 target_root = '/app'
-# This list covers all possible locations Articulate uses
 prefixes = ['', 'html5/lib/scripts/', 'html5/lib/stylesheets/', 'html5/data/css/', 'html5/data/js/', 'mobile/', 'story_content/']
 
 def get_master_list():
     assets = set()
     regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico|cur|svg)'
-    # Scan the temp bootstrap files and story.html for every possible asset name
     for fname in ['story.html', 'data.js_temp', 'paths.js_temp']:
         p = os.path.join(target_root, fname)
         if os.path.exists(p):
@@ -59,48 +56,51 @@ master_assets = get_master_list()
 downloaded = 0
 
 for asset in sorted(master_assets):
-    found = False
-    # Check if file exists in ANY of the prefix locations locally
-    for p in prefixes:
-        local_path = os.path.join(target_root, p, os.path.basename(asset)) if '/' in asset and p else os.path.join(target_root, p, asset)
-        # Simplify path logic
-        if p and not asset.startswith(p): final_loc = p + asset
-        else: final_loc = asset
-        
-        if os.path.exists(os.path.join(target_root, final_loc)):
-            found = True
-            break
+    success = False
     
-    if not found:
-        # Try downloading through possible prefixes until one works
-        for p in prefixes:
-            if p and not asset.startswith(p): try_url = base_url + p + asset
-            else: try_url = base_url + asset
+    # Try every prefix to find where the file actually lives on the server
+    for p in prefixes:
+        # Determine the correct relative path
+        if p and not asset.startswith(p):
+            rel_path = p + asset
+        else:
+            rel_path = asset
             
-            try:
-                r = requests.get(try_url, timeout=5)
-                if r.status_code == 200:
-                    dest = os.path.join(target_root, try_url.replace(base_url, ''))
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    with open(dest, 'wb') as f: f.write(r.content)
-                    print(f'  [NEW] {try_url.replace(base_url, \"\")}')
-                    downloaded += 1
-                    break
-            except: continue
+        full_local_path = os.path.join(target_root, rel_path)
+        
+        # If the file exists in this specific location, skip to next asset
+        if os.path.exists(full_local_path):
+            success = True
+            break
+            
+        # If not on disk, try to download it from this specific prefix
+        try:
+            url = base_url + rel_path
+            r = requests.get(url, timeout=3)
+            if r.status_code == 200:
+                os.makedirs(os.path.dirname(full_local_path), exist_ok=True)
+                with open(full_local_path, 'wb') as f:
+                    f.write(r.content)
+                print(f'  [NEW] {rel_path}')
+                downloaded += 1
+                success = True
+                break
+        except:
+            continue
 
 print(f'\n--- Sync Complete. New files: {downloaded} ---')
 \" "
 
-# Clean up temp mapping files
+# Clean up
 rm -f *_temp
 
 # 4. Webserver
-printf "\n\033[0;32m[*] Integrity Check Passed.\033[0m\n"
+printf "\n\033[0;32m[*] All assets verified.\033[0m\n"
 printf "Do you want to host the game locally now? (y/n): "
 read START_SRV < /dev/tty
 
 if [[ "$START_SRV" =~ ^[Yy]$ ]]; then
     IP_ADDR=$(hostname -I | awk '{print $1}')
-    printf "\n\033[1;34mGame: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
+    printf "\n\033[1;34mGame URL: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
     python3 -m http.server 8080
 fi
