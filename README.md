@@ -31,12 +31,14 @@ An automated tool designed to archive and host the **Pathways Interactive Learni
 
 ## 🚀 How It Works (Step-by-Step)
 
-The crawler executes a sophisticated retrieval process:
-1. **Targeting:** You define the local directory (Default: `/root/Pathways`).
-2. **Resource Fetching:** It pulls the latest **Teacher’s Guide PDF** directly into your folder.
-3. **Deep Asset Scan:** Launches a Python-based Docker container that scans the core files (`story.html`, `.js`, `.css`) for remote media links.
-4. **Synchronization:** Downloads and organizes over 1,000 unique assets (`.mp4`, `.mp3`, `.png`, `.json`) into the correct folder structure.
-5. **Local Deployment:** Offers to launch an instant Python HTTP server to make the game available on your local network.
+The crawler executes a precision-engineered retrieval and mirroring process:
+
+1. **Environment Targeting:** You define the local installation directory (Default: `/opt/Pathways`). The script validates root permissions and prepares the local filesystem.
+2. **Resource Fetching:** It pulls the latest **Teacher’s Guide PDF** and core documentation directly into the root directory for offline reference.
+3. **Engine Bootstrapping:** The script manually "bootstraps" the core game engine. It downloads the primary logic files (`data.js`, `paths.js`, and `story.html`) and injects them into the specific Articulate Storyline directory tree (`html5/data/js/`) to ensure the game "brain" is correctly placed.
+4. **Recursive Deep Scan:** A Python-powered Docker container scans the core engine files. It uses advanced regex pattern matching to identify obfuscated media links and internal script calls hidden within the `.js` and `.css` files.
+5. **Structure Mirroring:** Unlike standard downloaders, this tool preserves **Path Integrity**. It tests multiple server-side directory prefixes to locate assets and recreates that exact directory structure locally (e.g., `story_content/`, `mobile/`, `html5/lib/`).
+6. **Local Deployment:** Offers an optional instant-start Python HTTP server, making the game accessible to any device on your local network (LAN) via port `8080` at the `/story.html` endpoint.
 
 ---
 
