@@ -3,36 +3,39 @@
 # --- LEGAL WARNING ---
 printf "\033[1;31m"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-printf "WARNING: This script downloads content from Shout Out UK.\n"
-printf "Usage of this tool may violate their Terms of Service (ToS).\n"
-printf "This project is for educational purposes only. USE AT YOUR OWN RISK.\n"
+printf "WARNING: Educational & Research use only. Usage is at own risk.\n"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "\033[0m\n"
 
 TARGET_DIR="/opt/Pathways"
 
+# 1. Root Check
 if [ "$(id -u)" -ne 0 ]; then
-  printf "Error: Please run as root (use sudo).\n"
+  printf "\033[1;31mError: Please run as root (use sudo).\033[0m\n"
   exit 1
 fi
 
+# 2. Dependency Check & Install
 printf "\n\033[0;32m[1/4] Checking system dependencies...\033[0m\n"
 if ! command -v docker >/dev/null 2>&1; then
-    printf "Installing Docker...\n"
+    printf "Installing Docker and required tools...\n"
     apt-get update
     apt-get install -y -o Dpkg::Options::="--force-overwrite" docker.io curl python3
 fi
 systemctl start docker >/dev/null 2>&1
 
+# 3. Preparation
 printf "\033[0;32m[2/4] Preparing directory: %s\033[0m\n" "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
-printf "\033[0;32m[3/4] Fetching core game files...\033[0m\n"
+# 4. Download Core Files
+printf "\033[0;32m[3/4] Downloading entry files...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 
-printf "\n\033[0;32m[4/4] Launching Recursive Asset Crawler (Docker)...\033[0m\n"
+# 5. Optimized Crawler (Docker)
+printf "\033[0;32m[4/4] Syncing assets (Checking local disk first)...\033[0m\n"
 docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
 python3 -c \"
@@ -40,52 +43,69 @@ import requests, os, re
 base_url = 'https://www.shoutoutuk.org/gamepw/'
 target_root = '/app'
 regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico|cur|svg)'
+prefixes = ['', 'html5/lib/scripts/', 'html5/data/css/', 'html5/data/js/', 'mobile/', 'story_content/']
 
-def crawl(initial_files=None):
+def sync():
     found_links = set()
-    if initial_files: found_links.update(initial_files)
     for root, _, files in os.walk(target_root):
         for file in files:
-            if file.endswith(('.js', '.html', '.css', '.xml', '.json')):
+            if file.endswith(('.js', '.html', '.css', '.xml')):
                 try:
                     with open(os.path.join(root, file), 'r', errors='ignore') as f:
                         found_links.update(re.findall(regex, f.read()))
                 except: continue
-    to_download = {f.split('?')[0].lstrip('/') for f in found_links if not f.startswith(('http', 'data:', 'https:'))}
-    new_assets = 0
-    for path in sorted(to_download):
-        prefixes = ['', 'html5/lib/scripts/', 'html5/data/css/', 'html5/data/js/', 'mobile/', 'story_content/']
+    
+    to_check = {f.split('?')[0].lstrip('/') for f in found_links if not f.startswith(('http', 'data:'))}
+    new_count = 0
+    
+    for path in sorted(to_check):
+        if len(path) < 4: continue
+        
+        # Fast local check
+        exists = False
+        for p in prefixes:
+            loc = p + os.path.basename(path) if p and '/' in path else path
+            if p and not path.startswith(p): loc = p + path
+            else: loc = path
+            if os.path.exists(os.path.join(target_root, loc)):
+                exists = True
+                break
+        
+        if exists: continue
+
+        # Network download only if missing
         for p in prefixes:
             loc = p + os.path.basename(path) if p and '/' in path else path
             if p and not path.startswith(p): loc = p + path
             else: loc = path
             dest = os.path.join(target_root, loc)
-            if os.path.exists(dest) or len(loc) < 4: continue
             try:
-                r = requests.get(base_url + loc, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+                r = requests.get(base_url + loc, timeout=5)
                 if r.status_code == 200:
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     with open(dest, 'wb') as f: f.write(r.content)
-                    print(f'  [OK] {loc}')
-                    new_assets += 1
+                    print(f'  [OK] Downloaded: {loc}')
+                    new_count += 1
                     break
             except: continue
-    return new_assets
+    return new_count
 
-seeds = ['html5/lib/scripts/bootstrapper.min.js', 'html5/data/css/output.min.css', 'story_content/user.js', 'html5/data/js/data.js', 'html5/data/js/frame.js', 'html5/data/js/paths.js']
+# Run sync loop
 total = 0
 while True:
-    added = crawl(seeds if total == 0 else None)
+    added = sync()
     total += added
     if added == 0: break
-    print(f'--- Added {added} files. Syncing... ---')
-print(f'Finished. Total assets: {total}')
 \" "
 
-printf "\n\033[1;32m[*] ARCHIVE COMPLETE!\033[0m\n"
-IP_ADDR=$(hostname -I | awk '{print $1}')
-printf "\033[1;34m------------------------------------------------------\033[0m\n"
-printf "To host the game on your network, run:\033[1;32m\n"
-printf "cd %s && python3 -m http.server 8080\033[0m\n\n" "$TARGET_DIR"
-printf "Access it at: \033[1;36mhttp://%s:8080/story.html\033[0m\n" "$IP_ADDR"
-printf "\033[1;34m------------------------------------------------------\033[0m\n"
+# 6. Webserver Prompt
+printf "\n\033[0;32m[*] Sync complete. Total new assets: $total\033[0m\n"
+printf "Do you want to host the game locally now? (y/n): "
+read START_SRV < /dev/tty
+
+if [[ "$START_SRV" =~ ^[Yy]$ ]]; then
+    IP_ADDR=$(hostname -I | awk '{print $1}')
+    printf "\n\033[1;34mLink: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
+    printf "\033[1;33mPress CTRL+C to stop the server.\033[0m\n"
+    python3 -m http.server 8080
+fi
