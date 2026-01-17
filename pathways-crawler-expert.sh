@@ -8,54 +8,59 @@ printf "Usage of this tool is at your own risk.\n"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "\033[0m\n"
 
-# 1. Path Setup
-DEFAULT_PATH="/root/Pathways"
+# 1. Path Setup - Moved to /opt to avoid Docker/Root permission issues
+DEFAULT_PATH="/opt/Pathways"
 printf "Target directory [%s]: " "$DEFAULT_PATH"
 read USER_INPUT
-USER_PATH="${USER_INPUT:-$DEFAULT_PATH}"
-# Stahujeme priamo do zadaneho priecinka, aby sa nam nemiesali cesty
-TARGET_DIR="$USER_PATH"
+TARGET_DIR="${USER_INPUT:-$DEFAULT_PATH}"
 
 # 2. Preparation
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
-# 3. Bootstrapping - Tieto subory MUSIA byt v TARGET_DIR pred spustenim Dockeru
+# 3. Bootstrapping
 printf "\n\033[0;32m[*] Bootstrapping core files...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 
 # 4. Recursive Docker Crawler
 printf "\n\033[0;32m[*] Launching Recursive Crawler (Docker)...\033[0m\n"
-docker run -i --rm -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
+# Pridany --user 0:0 aby Docker mal root prava na zapis do namontovaneho volume
+docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
 python3 -c \"
 import requests, os, re
 base_url = 'https://www.shoutoutuk.org/gamepw/'
 target_root = '/app'
-# Agresivnejsi regex na vsetky mozne assety
 regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico|cur|svg)'
 
-def crawl():
+def crawl(initial_files=None):
     found_links = set()
+    if initial_files:
+        found_links.update(initial_files)
+    
+    # Debug: check what we see
+    existing_files = []
     for root, _, files in os.walk(target_root):
         for file in files:
-            # Skenujeme vsetko, co by mohlo obsahovat linky
+            existing_files.append(file)
             if file.endswith(('.js', '.html', '.css', '.xml', '.json')):
                 try:
                     with open(os.path.join(root, file), 'r', errors='ignore') as f:
-                        content = f.read()
-                        found_links.update(re.findall(regex, content))
+                        found_links.update(re.findall(regex, f.read()))
                 except: continue
     
     to_download = {f.split('?')[0].lstrip('/') for f in found_links if not f.startswith(('http', 'data:', 'https:'))}
     
     new_assets = 0
     for path in sorted(to_download):
-        # Skusame vsetky mozne prefixy, ktore Articulate pouziva
-        possible_locs = [path, 'html5/lib/scripts/'+path, 'html5/data/css/'+path, 'html5/data/js/'+path, 'mobile/'+os.path.basename(path), 'story_content/'+os.path.basename(path)]
-        
-        for loc in possible_locs:
+        # We try basic path and common Articulate subdirs
+        prefixes = ['', 'html5/lib/scripts/', 'html5/data/css/', 'html5/data/js/', 'mobile/', 'story_content/']
+        for p in prefixes:
+            loc = p + os.path.basename(path) if p and '/' in path else path
+            if p and not path.startswith(p): loc = p + path
+            else: loc = path
+
             dest = os.path.join(target_root, loc)
             if os.path.exists(dest) or len(loc) < 4: continue
             
@@ -70,25 +75,25 @@ def crawl():
             except: continue
     return new_assets
 
-print('Starting deep synchronization...')
+print('Scanning...')
+# Seed links to force start
+seeds = ['html5/lib/scripts/bootstrapper.min.js', 'html5/data/css/output.min.css', 'story_content/user.js']
 total = 0
-# Prve kolo vynuti stiahnutie bootstrapperov
 while True:
-    added = crawl()
+    added = crawl(seeds if total == 0 else None)
     total += added
     if added == 0: break
-    print(f'--- Added {added} files. Searching for more dependencies... ---')
+    print(f'--- Added {added} files. Next phase... ---')
 
-print(f'Done. Total assets synced: {total}')
+print(f'Finished. Total: {total}')
 \" "
 
-# 5. Webserver Option
-printf "\n\033[0;32m[*] Process finished. Files saved in: %s\033[0m\n" "$TARGET_DIR"
-printf "Do you want to start the webserver? (y/n): "
-read START_SRV
-
-if [ "$START_SRV" = "y" ] || [ "$START_SRV" = "Y" ]; then
+# 5. Result
+if [ -f "$TARGET_DIR/story.html" ]; then
+    printf "\n\033[0;32m[*] Success! Files saved in: %s\033[0m\n" "$TARGET_DIR"
     IP_ADDR=$(hostname -I | awk '{print $1}')
-    printf "\n\033[1;32mURL: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
-    python3 -m http.server 8080
+    printf "\033[1;32mURL: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
+    printf "To start server manually: cd %s && python3 -m http.server 8080\n" "$TARGET_DIR"
+else
+    printf "\n\033[1;31m[!] Error: story.html not found in %s\033[0m\n" "$TARGET_DIR"
 fi
