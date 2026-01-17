@@ -8,24 +8,21 @@ printf "Usage of this tool is at your own risk.\n"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "\033[0m\n"
 
-# 1. Path Setup - Moved to /opt to avoid Docker/Root permission issues
-DEFAULT_PATH="/opt/Pathways"
-printf "Target directory [%s]: " "$DEFAULT_PATH"
-read USER_INPUT
-TARGET_DIR="${USER_INPUT:-$DEFAULT_PATH}"
+# 1. Fixed Path Setup (Avoids reading from stdin during curl pipe)
+TARGET_DIR="/opt/Pathways"
 
 # 2. Preparation
+printf "\n\033[0;32m[*] Preparing directory: %s\033[0m\n" "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
 # 3. Bootstrapping
-printf "\n\033[0;32m[*] Bootstrapping core files...\033[0m\n"
+printf "\033[0;32m[*] Bootstrapping core files...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 
 # 4. Recursive Docker Crawler
-printf "\n\033[0;32m[*] Launching Recursive Crawler (Docker)...\033[0m\n"
-# Pridany --user 0:0 aby Docker mal root prava na zapis do namontovaneho volume
+printf "\033[0;32m[*] Launching Recursive Crawler (Docker)...\033[0m\n"
 docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
 python3 -c \"
@@ -39,11 +36,8 @@ def crawl(initial_files=None):
     if initial_files:
         found_links.update(initial_files)
     
-    # Debug: check what we see
-    existing_files = []
     for root, _, files in os.walk(target_root):
         for file in files:
-            existing_files.append(file)
             if file.endswith(('.js', '.html', '.css', '.xml', '.json')):
                 try:
                     with open(os.path.join(root, file), 'r', errors='ignore') as f:
@@ -54,7 +48,6 @@ def crawl(initial_files=None):
     
     new_assets = 0
     for path in sorted(to_download):
-        # We try basic path and common Articulate subdirs
         prefixes = ['', 'html5/lib/scripts/', 'html5/data/css/', 'html5/data/js/', 'mobile/', 'story_content/']
         for p in prefixes:
             loc = p + os.path.basename(path) if p and '/' in path else path
@@ -75,8 +68,6 @@ def crawl(initial_files=None):
             except: continue
     return new_assets
 
-print('Scanning...')
-# Seed links to force start
 seeds = ['html5/lib/scripts/bootstrapper.min.js', 'html5/data/css/output.min.css', 'story_content/user.js']
 total = 0
 while True:
@@ -93,7 +84,8 @@ if [ -f "$TARGET_DIR/story.html" ]; then
     printf "\n\033[0;32m[*] Success! Files saved in: %s\033[0m\n" "$TARGET_DIR"
     IP_ADDR=$(hostname -I | awk '{print $1}')
     printf "\033[1;32mURL: http://%s:8080/story.html\033[0m\n" "$IP_ADDR"
-    printf "To start server manually: cd %s && python3 -m http.server 8080\n" "$TARGET_DIR"
+    # Note: No interactive read here to avoid issues with curl pipe
+    printf "\033[1;33mTo start webserver, run: cd %s && python3 -m http.server 8080\033[0m\n" "$TARGET_DIR"
 else
     printf "\n\033[1;31m[!] Error: story.html not found in %s\033[0m\n" "$TARGET_DIR"
 fi
