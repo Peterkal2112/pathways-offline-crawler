@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- LEGAL WARNING ---
+# --- LEGAL WARNING --- (KEEPING AS IS)
 printf "\033[1;31m"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "WARNING: This script downloads content from Shout Out UK.\n"
@@ -9,19 +9,19 @@ printf "This project is for educational purposes only. USE AT YOUR OWN RISK.\n"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "\033[0m\n"
 
-# 1. Path Setup
+# 1. Path Setup (KEEPING AS IS)
 DEFAULT_PATH="/opt/Pathways"
 printf "Enter installation directory [%s]: " "$DEFAULT_PATH"
 read -r USER_INPUT < /dev/tty
 TARGET_DIR="${USER_INPUT:-$DEFAULT_PATH}"
 
-# 2. Check Permissions
+# 2. Check Permissions (KEEPING AS IS)
 if [ "$(id -u)" -ne 0 ]; then
   printf "\033[1;31mError: Please run as root (use sudo).\033[0m\n"
   exit 1
 fi
 
-# 3. Dependencies
+# 3. Dependencies (KEEPING AS IS)
 printf "\n\033[0;32m[1/5] Checking system dependencies...\033[0m\n"
 if ! command -v docker >/dev/null 2>&1; then
     printf "Installing Docker and required tools...\n"
@@ -35,14 +35,26 @@ printf "\033[0;32m[2/5] Preparing directory: %s\033[0m\n" "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
-# 5. Bootstrap Discovery Files
-printf "\033[0;32m[3/5] Downloading entry files...\033[0m\n"
-# We download these to the root temporarily to kickstart the scan
-curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
+# 5. Bootstrap Discovery Files (FIXED: Explicitly placing them in subfolders)
+printf "\033[0;32m[3/5] Downloading entry files into proper subdirectories...\033[0m\n"
+BASE="https://www.shoutoutuk.org/gamepw/"
+
+# Create the folder structure first
+mkdir -p html5/data/js html5/lib/scripts html5/lib/stylesheets story_content mobile
+
+# Download core files to the CORRECT subdirectories
+curl -sL "${BASE}story.html" -o "story.html"
+curl -sL "${BASE}html5/data/js/data.js" -o "html5/data/js/data.js"
+curl -sL "${BASE}html5/data/js/paths.js" -o "html5/data/js/paths.js"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 
-# 6. Verbose Multi-Round Crawler
-printf "\033[0;32m[4/5] Starting Asset Crawler (Deep Scan)...\033[0m\n"
+# Clean up any misplaced files from previous runs
+rm -f data.js paths.js
+
+# 6. The Crawling Bit (IMPROVED: Strict Path Preservation)
+printf "\033[0;32m[4/5] Starting Recursive Asset Discovery...\033[0m\n"
+
+
 
 docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
@@ -51,80 +63,78 @@ import requests, os, re
 
 base_url = 'https://www.shoutoutuk.org/gamepw/'
 target_root = '/app'
-# Every possible directory Articulate uses
-prefixes = ['', 'html5/lib/scripts/', 'html5/lib/stylesheets/', 'html5/data/css/', 'html5/data/js/', 'mobile/', 'story_content/']
-exts = 'png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico|cur|svg'
-regex = r'[a-zA-Z0-9_/.-]+\.(?:' + exts + ')'
+
+# Articulate Storyline directory structure map
+prefixes = ['', 'html5/data/js/', 'html5/data/css/', 'html5/lib/scripts/', 'html5/lib/stylesheets/', 'mobile/', 'story_content/']
+regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico|cur|svg)'
 
 scanned_files = set()
-total_downloaded = 0
+total_new = 0
 
-def scan_and_sync():
-    global total_downloaded
-    found_links = set()
-    
-    # Verbose Debug: Identify files to scan
-    files_to_scan = []
+def deep_scan():
+    global total_new
+    discovered_links = set()
+    files_to_check = []
+
+    # 1. Identify all crawlable files (html, js, css, etc.)
     for root, _, files in os.walk(target_root):
         for file in files:
             fpath = os.path.join(root, file)
-            if fpath not in scanned_files and file.endswith(('.js', '.html', '.css', '.xml', '.json')):
-                files_to_scan.append(fpath)
-    
-    if not files_to_scan:
-        return 0
+            if fpath not in scanned_files and file.endswith(('.js', '.html', '.css', '.json', '.xml')):
+                files_to_check.append(fpath)
 
-    # Part A: Extraction
-    for fpath in files_to_scan:
+    if not files_to_check: return False
+
+    # 2. Extract links from those files
+    for fpath in files_to_check:
         try:
             with open(fpath, 'r', errors='ignore') as f:
-                found_links.update(re.findall(regex, f.read()))
+                content = f.read()
+                discovered_links.update(re.findall(regex, content))
             scanned_files.add(fpath)
         except: continue
 
-    # Part B: Download Logic
-    new_in_round = 0
-    to_check = {l.split('?')[0].lstrip('/') for l in found_links if len(l) > 4 and not l.startswith('http')}
-    
-    for asset in sorted(to_check):
-        success = False
-        # Try all prefixes to find the file
+    # 3. Download Logic
+    new_downloads = 0
+    for link in sorted(discovered_links):
+        clean_name = link.split('?')[0].lstrip('/')
+        if len(clean_name) < 5 or clean_name.startswith('http'): continue
+
+        found_locally = False
+        # Check if file exists in ANY of the correct subdirectories
         for p in prefixes:
-            rel = p + asset if p and not asset.startswith(p) else asset
-            dest = os.path.join(target_root, rel)
-            
-            if os.path.exists(dest):
-                success = True
+            # Handle cases where the link already contains the prefix
+            rel_path = clean_name if p and clean_name.startswith(p) else p + clean_name
+            if os.path.exists(os.path.join(target_root, rel_path)):
+                found_locally = True
                 break
-            
-            try:
-                r = requests.get(base_url + rel, timeout=5)
-                if r.status_code == 200:
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    with open(dest, 'wb') as f: f.write(r.content)
-                    print(f'  [+] {rel}')
-                    new_in_round += 1
-                    total_downloaded += 1
-                    success = True
-                    break
-            except: continue
-    return new_in_round
+        
+        if not found_locally:
+            # Try to fetch from the server by testing all possible paths
+            for p in prefixes:
+                rel_path = clean_name if p and clean_name.startswith(p) else p + clean_name
+                try:
+                    r = requests.get(base_url + rel_path, timeout=5)
+                    if r.status_code == 200:
+                        dest = os.path.join(target_root, rel_path)
+                        os.makedirs(os.path.dirname(dest), exist_ok=True)
+                        with open(dest, 'wb') as f: f.write(r.content)
+                        print(f'  [+] Saved to: {rel_path}')
+                        new_downloads += 1
+                        total_new += 1
+                        break
+                except: continue
+    return new_downloads > 0
 
-# Multi-round execution with verbosity
-round_num = 1
-while True:
-    print(f'[*] Round {round_num}: Scanning for new assets...')
-    added = scan_and_sync()
-    if added == 0:
-        print('[*] No new assets found in this round.')
-        break
-    print(f'--- Round {round_num} complete. Added {added} files. ---')
-    round_num += 1
+round = 1
+while deep_scan():
+    print(f'[*] Round {round} complete. Scanning newly found files...')
+    round += 1
 
-print(f'\nFinal Sync Complete. Total new assets: {total_downloaded}')
+print(f'[*] Final Sync Complete: {total_new} files added to directory structure.')
 \" "
 
-# 7. Webserver Prompt
+# 7. Final Step: Webserver (KEEPING AS IS)
 FILE_COUNT=$(find "$TARGET_DIR" -type f | wc -l)
 printf "\n\033[0;32m[5/5] Integrity Check: %s files found.\033[0m\n" "$FILE_COUNT"
 printf "Do you want to host the game locally now? (y/n): "
