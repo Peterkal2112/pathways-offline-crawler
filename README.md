@@ -46,7 +46,7 @@ The crawler executes a sophisticated retrieval process:
 **Ideal for Ubuntu/Debian users.** This script checks for dependencies, installs Docker if missing (using `apt`), and configures the environment automatically.
 
 ```bash
-curl -sSL [https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler.sh](https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler.sh) | sudo bash
+curl -sSL https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler.sh | sudo bash
 ```
 
 ### Option B: Expert (Manual)
