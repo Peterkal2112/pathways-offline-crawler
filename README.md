@@ -7,15 +7,14 @@
 An automated tool designed to archive and host the **Pathways Interactive Learning Package** (originally by Shout Out UK) for offline educational use, resilience research, and accessibility in low-connectivity environments.
 
 ---
-
 ## 📑 Table of Contents
-1. [⚠️ Legal Disclaimer & ToS Warning](#-legal-disclaimer--tos-warning)
+1. [⚠️ Legal Disclaimer & ToS Warning](#️-legal-disclaimer--tos-warning)
 2. [🚀 How It Works (Step-by-Step)](#-how-it-works-step-by-step)
 3. [📦 Installation & Usage](#-installation--usage)
     - [Option A: Standard (Automatic)](#option-a-standard-automatic)
     - [Option B: Expert (Manual)](#option-b-expert-manual)
 4. [📖 Included Materials](#-included-materials)
-5. [🖥️ Hosting Alternatives](#-hosting-alternatives)
+5. [🖥️ Hosting Alternatives](#️-hosting-alternatives)
 6. [📜 Quote of the Day](#-quote-of-the-day)
 
 ---
