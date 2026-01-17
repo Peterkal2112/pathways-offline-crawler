@@ -23,7 +23,11 @@ cd "$TARGET_DIR" || exit
 printf "\n\033[0;32m[*] Fetching Teacher's Guide PDF...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 
-# 4. Recursive Docker Crawler
+# 4. Bootstrapping (Stiahnutie zakladneho suboru aby mal crawler co skenovat)
+printf "\033[0;32m[*] Bootstrapping main game file...\033[0m\n"
+curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
+
+# 5. Recursive Docker Crawler
 printf "\n\033[0;32m[*] Launching Recursive Crawler (Docker)...\033[0m\n"
 docker run -i --rm -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
@@ -34,37 +38,50 @@ target_root = '/app'
 regex = r'[a-zA-Z0-9_/.-]+\.(?:png|gif|jpg|jpeg|mp3|mp4|wav|swf|json|js|css|woff|html|xml|ico)'
 
 def crawl():
-    found_files = {'story.html', 'analytics-frame.html'}
+    found_links = set()
+    # Scan all existing files for new links
     for root, _, files in os.walk(target_root):
         for file in files:
             if file.endswith(('.js', '.html', '.css', '.xml')):
-                with open(os.path.join(root, file), 'r', errors='ignore') as f:
-                    found_files.update(re.findall(regex, f.read()))
-    to_download = {f.split('?')[0].lstrip('/') for f in found_files if not f.startswith(('http', 'data:'))}
-    new_count = 0
+                try:
+                    with open(os.path.join(root, file), 'r', errors='ignore') as f:
+                        found_links.update(re.findall(regex, f.read()))
+                except: continue
+    
+    # Filter only local/relative paths
+    to_download = {f.split('?')[0].lstrip('/') for f in found_links if not f.startswith(('http', 'data:'))}
+    
+    new_assets = 0
     for path in sorted(to_download):
-        for loc in [path, 'mobile/'+os.path.basename(path), 'story_content/'+os.path.basename(path)]:
+        # Articulate Storyline often uses these subfolders
+        for loc in [path, 'mobile/'+os.path.basename(path), 'story_content/'+os.path.basename(path), 'html5/data/js/'+os.path.basename(path)]:
             dest = os.path.join(target_root, loc)
-            if os.path.exists(dest): break
+            if os.path.exists(dest): break # Already have it
+            
             try:
                 r = requests.get(base_url + loc, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
                 if r.status_code == 200:
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     with open(dest, 'wb') as f: f.write(r.content)
-                    print(f'  [OK] {loc}')
-                    new_count += 1
+                    print(f'  [NEW] {loc}')
+                    new_assets += 1
                     break
             except: continue
-    return new_count
+    return new_assets
 
+print('Starting deep synchronization...')
+total_new = 0
 while True:
     added = crawl()
+    total_new += added
     if added == 0: break
-    print(f'Done phase. Added {added} assets. Checking for new links...')
+    print(f'--- Phase complete. Added {added} files. Re-scanning... ---')
+
+print(f'Finished. Total assets synced: {total_new}')
 \" "
 
-# 5. Webserver Option
-printf "\n\033[0;32m[*] Process finished. Files saved in %s\033[0m\n" "$TARGET_DIR"
+# 6. Webserver Option
+printf "\n\033[0;32m[*] Process finished. Files saved in: %s\033[0m\n" "$TARGET_DIR"
 printf "Do you want to start the webserver? (y/n): "
 read START_SRV
 
