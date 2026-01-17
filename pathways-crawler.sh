@@ -25,11 +25,11 @@ fi
 # 3. Dependencies (Fixing the Docker Conflict)
 printf "\n\033[0;32m[1/5] Checking system dependencies...\033[0m\n"
 
-# Ak docker nefunguje, skúsime fixnúť rozbitú inštaláciu z tvojho logu
+# If docker is missing, attempt to repair and install
 if ! command -v docker >/dev/null 2>&1; then
     printf "Repairing and installing docker...\n"
     apt-get update
-    # Tento príkaz vyrieši ten konflikt s docker-buildx, ktorý si mal v logu
+    # Force overwrite to resolve potential docker-buildx conflicts
     apt-get install -y -o Dpkg::Options::="--force-overwrite" docker.io curl
 fi
 systemctl start docker >/dev/null 2>&1
