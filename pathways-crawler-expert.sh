@@ -10,14 +10,36 @@ printf "\033[0m\n"
 
 TARGET_DIR="/opt/Pathways"
 
+# 1. Preparation
 printf "\n\033[0;32m[*] Target Directory: %s\033[0m\n" "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR" || exit
 
+# 2. Bootstrapping
 printf "\033[0;32m[*] Bootstrapping main files...\033[0m\n"
 curl -sL "https://www.shoutoutuk.org/wp-content/uploads/2024/06/pathways-teachers-guide-extremism-youth-radicalisation.pdf" -o "Teaching_Guide.pdf"
 curl -sL "https://www.shoutoutuk.org/gamepw/story.html" -o "story.html"
 
+# 3. Create Portal Page
+cat <<EOF > index.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pathways Portal</title>
+    <style>
+        body { background: #111; color: white; font-family: sans-serif; text-align: center; padding-top: 50px; }
+        .btn { display: inline-block; padding: 15px 30px; margin: 10px; background: #00ff9d; color: black; text-decoration: none; border-radius: 5px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Pathways Offline Resource</h1>
+    <a href="story.html" class="btn">START GAME</a><br>
+    <a href="Teaching_Guide.pdf" class="btn" style="background:#444; color:white;">TEACHER GUIDE</a>
+</body>
+</html>
+EOF
+
+# 4. Recursive Crawler (Docker)
 printf "\033[0;32m[*] Launching Asset Crawler (Docker)...\033[0m\n"
 docker run -i --rm --user 0:0 -v "$TARGET_DIR:/app" python:3.9-slim bash -c "
 pip install requests > /dev/null 2>&1;
@@ -65,12 +87,16 @@ while True:
     total += added
     if added == 0: break
     print(f'--- Added {added} files. Syncing... ---')
-print(f'Sync Complete. Total assets: {total}')
 \" "
 
-IP_ADDR=$(hostname -I | awk '{print $1}')
-printf "\n\033[1;34m------------------------------------------------------\033[0m\n"
-printf "To start hosting, run:\033[1;32m\n"
-printf "cd %s && python3 -m http.server 8080\033[0m\n\n" "$TARGET_DIR"
-printf "URL: \033[1;36mhttp://%s:8080/story.html\033[0m\n" "$IP_ADDR"
-printf "\033[1;34m------------------------------------------------------\033[0m\n"
+# 5. The Interactive Part (Fixed for curl)
+printf "\n\033[0;32m[*] Download complete.\033[0m\n"
+printf "Do you want to host the game locally now? (y/n): "
+read START_SRV < /dev/tty
+
+if [ "$START_SRV" = "y" ] || [ "$START_SRV" = "Y" ]; then
+    IP_ADDR=$(hostname -I | awk '{print $1}')
+    printf "\n\033[1;34mPortal: http://%s:8080/index.html\033[0m\n" "$IP_ADDR"
+    printf "\033[1;33mPress CTRL+C to stop the server.\033[0m\n"
+    python3 -m http.server 8080
+fi
