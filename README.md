@@ -1,3 +1,8 @@
+## ⚖️ License
+
+This project is licensed under the [MIT License](LICENSE).
+Copyright (c) 2026 Peterkal2112.
+
 # 🛡️ Pathways Offline Crawler & Local Host 🛡️
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
