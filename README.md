@@ -22,10 +22,11 @@ An automated tool designed to archive and host the **Pathways Interactive Learni
 ## ⚠️ Legal Disclaimer & ToS Warning
 
 **READ CAREFULLY BEFORE PROCEEDING:**
-- **Violation of Terms:** This script interacts with Shout Out UK's servers. Using this tool to mirror their content may violate their **Terms of Service (ToS)** and the **Prevent duty** framework.
+- **Violation of Terms:** This script interacts with Shout Out UK's servers. Using this tool to mirror their content may violate their **Terms of Service (ToS)**.
+- **Non-Affiliation:** This project is **not** affiliated with, authorized, or endorsed by Shout Out UK.
 - **Educational Use Only:** This project is intended strictly for educational resilience, archiving, and research purposes.
-- **At Your Own Risk:** The author assumes **no liability** for how this tool is used, for any data loss, or for potential legal repercussions. 
-- **Ownership:** All rights to the content, videos, and logic belong to the original copyright holders.
+- **At Your Own Risk:** The author assumes **no liability** for how this tool is used, for any data loss, or for potential legal repercussions.
+- **Ownership:** All rights to the game content, videos, and logic belong to the original copyright holders.
 
 ---
 
