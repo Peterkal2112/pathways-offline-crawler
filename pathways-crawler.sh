@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- LEGAL WARNING --- (KEEPING AS IS)
+# --- LEGAL WARNING ---
 printf "\033[1;31m"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "WARNING: This script downloads content from Shout Out UK.\n"
@@ -9,19 +9,19 @@ printf "This project is for educational purposes only. USE AT YOUR OWN RISK.\n"
 printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
 printf "\033[0m\n"
 
-# 1. Path Setup (KEEPING AS IS)
+# 1. Path Setup
 DEFAULT_PATH="/opt/Pathways"
 printf "Enter installation directory [%s]: " "$DEFAULT_PATH"
 read -r USER_INPUT < /dev/tty
 TARGET_DIR="${USER_INPUT:-$DEFAULT_PATH}"
 
-# 2. Check Permissions (KEEPING AS IS)
+# 2. Check Permissions
 if [ "$(id -u)" -ne 0 ]; then
   printf "\033[1;31mError: Please run as root (use sudo).\033[0m\n"
   exit 1
 fi
 
-# 3. Dependencies (KEEPING AS IS)
+# 3. Dependencies
 printf "\n\033[0;32m[1/5] Checking system dependencies...\033[0m\n"
 if ! command -v docker >/dev/null 2>&1; then
     printf "Installing Docker and required tools...\n"
@@ -134,7 +134,7 @@ while deep_scan():
 print(f'[*] Final Sync Complete: {total_new} files added to directory structure.')
 \" "
 
-# 7. Final Step: Webserver (KEEPING AS IS)
+# 7. Final Step: Webserver
 FILE_COUNT=$(find "$TARGET_DIR" -type f | wc -l)
 printf "\n\033[0;32m[5/5] Integrity Check: %s files found.\033[0m\n" "$FILE_COUNT"
 printf "Do you want to host the game locally now? (y/n): "
