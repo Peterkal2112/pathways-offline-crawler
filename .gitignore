@@ -1,0 +1,9 @@
+/opt/Pathways
+*.mp4
+*.mp3
+*.js
+*.html
+!pathways-crawler.sh
+!pathways-crawler-expert.sh
+!README.md
+!LICENSE
