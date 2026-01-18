@@ -45,10 +45,10 @@ The crawler executes a precision-engineered retrieval and mirroring process:
 ## 📦 Installation & Usage
 
 ### Option A: Standard (Automatic)
-**Ideal for Ubuntu/Debian users.** This script checks for dependencies, installs Docker if missing (using `apt`), and configures the environment automatically.
+**Ideal for new Ubuntu/Debian setups.** This version is "Zero-Config"—it performs a 5-step process that checks for `curl`, `python3`, and `docker`, installing them via `apt` if they are missing.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler.sh | sudo bash
+bash <(curl -sSL https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler.sh)
 ```
 
 ### Option B: Expert (Manual)
@@ -64,22 +64,26 @@ For advanced users who already have Docker running. This script skips all system
 sudo apt update && sudo apt install -y docker.io curl python3
 ```
 ```
-curl -sSL https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler-expert.sh | sudo bash
+bash <(curl -sSL https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler-expert.sh)
 ```
 
 ## 📖 Included Materials
 By running this crawler, you will obtain:
 
-* ✅ **The Interactive Game:** Full offline version accessible via `story.html`.
-* ✅ **Teaching Guide:** `Teaching_Guide.pdf` – An interactive learning package on extremism for 11-18-year-olds.
-* ✅ **Media Assets:** All localized videos and audio files for zero-latency gameplay.
+* ✅ **The Interactive Game:** Full offline-compatible mirror including the core engine logic (`html5/data/js/`).
+* ✅ **Teaching Guide:** `Teaching_Guide.pdf` – The complete instructional package on extremism and youth radicalisation for ages 11-18.
+* ✅ **Zero-Latency Media:** All high-definition assets downloaded locally, including 700+ `.mp3` audio files and `.mp4` video scenarios stored in `story_content/`.
+* ✅ **Directory Mapping:** A fully organized folder structure (`html5/`, `mobile/`, `story_content/`) that matches the original Articulate Storyline deployment.
 
 ## 🖥️ Hosting Alternatives
-Once the files are downloaded to your SSD/Server, you can:
+Once the files are synchronized to your local directory (Default: `/opt/Pathways`), you can:
 
-* **Local Server:** Use the built-in option in the script (Python HTTP Server).
-* **Professional Hosting:** Point an **Nginx** or **Apache** root to the folder for better performance.
-* **Static Access:** Simply open `story.html` directly in a modern web browser (note: some browsers may block certain scripts due to CORS when running from `file://` protocol).
+* **Built-in Hosting:** Use the Python 3 HTTP Server option prompted at the end of the script for instant LAN access.
+* **Professional Web Server:** Point an **Nginx** or **Apache** document root to your installation directory. This is recommended for multi-user classroom environments.
+* **Network Attached Storage (NAS):** Host the folder on a NAS or shared drive to provide access to multiple workstations without internet connectivity.
+* **Static Access:** Open `story.html` directly in a browser. 
+  > [!WARNING]
+  > Modern browsers may block critical game scripts (CORS policy) when using the `file://` protocol. Running through the script's HTTP server is the most reliable method.
 
 ---
 
