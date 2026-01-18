@@ -63,7 +63,7 @@ For advanced users who already have Docker running. This script skips all system
 ```bash
 sudo apt update && sudo apt install -y docker.io curl python3
 ```
-```
+```bash
 bash <(curl -sSL https://raw.githubusercontent.com/Peterkal2112/pathways-offline-crawler/main/pathways-crawler-expert.sh)
 ```
 
